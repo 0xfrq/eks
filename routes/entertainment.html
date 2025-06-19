@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responsive TV Player with EPG</title>
+  <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.8.0/dist/shaka-player.compiled.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pako/2.1.0/pako.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      background-color: #121212;
+      color: white;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding: 1rem;
+    }
+    video {
+      width: 100%;
+      max-height: 60vh;
+      background: black;
+    }
+    .channels {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+    .channel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #1e1e1e;
+      border-radius: 8px;
+      padding: 0.5rem;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .channel:hover {
+      background: #333;
+    }
+    .channel img {
+      width: 100%;
+      max-height: 80px;
+      object-fit: contain;
+    }
+    .channel-name {
+      margin-top: 0.5rem;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+    .epg-container {
+      background: #1e1e1e;
+      border-radius: 8px;
+      padding: 1rem;
+    }
+    .epg-container h3 {
+      margin-top: 0;
+    }
+    .epg-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+      gap: 0.5rem;
+    }
+    .epg-item {
+      background: #2a2a2a;
+      padding: 0.5rem;
+      border-radius: 6px;
+    }
+    .epg-time {
+      font-size: 0.8rem;
+      font-weight: bold;
+      margin-bottom: 0.25rem;
+    }
+    @media (max-width: 600px) {
+      .epg-list {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <video id="video" controls autoplay></video>
+    <div class="channels" id="channel-list"></div>
+    <div class="epg-container">
+      <h3>Schedule</h3>
+      <div class="epg-list" id="epg-list">Loading schedule...</div>
+    </div>
+  </div>
+
+  <script>
+    const epgUrl = 'https://warningfm.github.io/x1/epg/guide.xml.gz';
+    const channels = [
+  {
+    id: "CNN International",
+    name: "CNN International",
+    logo: "https://cdn4.mbahnunungonline.net/img/nLk6uxc.png?v=1.0.0.1",
+    url: "https://cdn08jtedge.indihometv.com/dassdvr/133/cnninternational_dash/manifest.mpd",
+    keyId: "69646b755f3130303030303030303030",
+    key: "e4a2359b05563399f1d9adfce641724a"
+  },
+      {
+        id: "Citra Drama",
+        name: "Citra Drama",
+        logo: "https://warningfm.github.io/v3/img/brVRgMU.png?v=1.0.0.1",
+        url: "https://atemecdnbalancer-voe.sysln.id/live/eds/MTVLiveHD/mpd/MTVLiveHD.mpd",
+        keyId: "fd2992f9397c491497015b57cd1c8747",
+        key: "1dcd4c7b242b479fd9f1899120fd1f2f"
+      },
+          {
+        id: "Animax HD",
+        name: "Animax HD",
+        logo: "https://warningfm.github.io/v3/img/9sjx4gG.png?v=1.0.0.1",
+        url: "https://tglmp01.akamaized.net/out/v1/de55fad9216e4fe7ad8d2eed456ba1ec/manifest.mpd",
+        keyId: "edf1a715de9748638dd2fad75a419af2",
+        key: "2f5a3199b26e9b693ae881af7ff864cf"
+      },
+      {
+        id: "Citra Entertainment",
+        name: "Citra Entertainment",
+        logo: "https://warningfm.github.io/v3/img/5cQKOuT.png?v=1.0.0.1",
+        url: "https://atemecdnbalancer-voe.sysln.id/live/eds/CitraEntertainmentHD/mpd/CitraEntertainmentHD.mpd",
+        keyId: "05cb4bbd91e34d858f6921e7196f7795",
+        key: "da3e19311e3a3d147607971a101c8dc3"
+      },
+      {
+        id: "Citra Muslim",
+        name: "Citra Muslim",
+        logo: "https://warningfm.github.io/v3/img/EunPKSf.png?v=1.0.0.1",
+        url: "https://atemecdnbalancer-voe.sysln.id/live/eds/CitraMuslimHD/mpd/CitraMuslimHD.mpd",
+        keyId: "f0bdfdef0f564819a2b43345b328f989",
+        key: "9f7555440fb310341ddb00cdbc638cea"
+      },
+      {
+        id: "RRI NET",
+        name: "RRI NET",
+        logo: "https://warningfm.github.io/v3/img/PekJ7S8.png?v=1.0.0.1",
+        url: "https://public-streaming.rri.co.id/memfs/a3a573d6-1ed3-4d6e-9f9f-e9a4e2cefd9d.m3u8",
+        isHLS: true
+      }
+      // Add more channels here...
+    ];
+
+    const epgData = {};
+    const video = document.getElementById('video');
+    const channelList = document.getElementById('channel-list');
+    const epgList = document.getElementById('epg-list');
+
+    async function loadEPG() {
+      try {
+        const resp = await fetch(epgUrl);
+        const blob = await resp.blob();
+        const buf = await blob.arrayBuffer();
+        const decompressed = pako.ungzip(new Uint8Array(buf));
+        const xml = new TextDecoder().decode(decompressed);
+        const doc = new DOMParser().parseFromString(xml, 'application/xml');
+        doc.querySelectorAll('programme').forEach(pr => {
+          const ch = pr.getAttribute('channel');
+          epgData[ch] = epgData[ch] || [];
+          epgData[ch].push({
+            start: pr.getAttribute('start'),
+            title: pr.querySelector('title')?.textContent || ''
+          });
+        });
+      } catch (e) {
+        console.error('Failed loading EPG', e);
+        epgList.innerHTML = 'Failed to load schedule';
+      }
+    }
+
+    function showEPG(channelId) {
+      epgList.innerHTML = '';
+      const items = (epgData[channelId] || []).slice(0, 5);
+      if (!items.length) {
+        epgList.textContent = 'No schedule available';
+        return;
+      }
+      items.forEach(pr => {
+        const dt = new Date(pr.start.replace(/^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2}) /, '$1-$2-$3T$4:$5:$6Z'));
+        const div = document.createElement('div');
+        div.className = 'epg-item';
+        div.innerHTML = `
+          <div class="epg-time">${dt.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'})}</div>
+          <div>${pr.title}</div>
+        `;
+        epgList.appendChild(div);
+      });
+    }
+
+    async function playChannel(channel) {
+      if (channel.isHLS) {
+        video.src = channel.url;
+      } else {
+        const player = new shaka.Player(video);
+        player.configure({
+          drm: {
+            clearKeys: { [channel.keyId]: channel.key }
+          }
+        });
+        try {
+          await player.load(channel.url);
+        } catch (e) {
+          console.error('Error playing channel:', e);
+        }
+      }
+      showEPG(channel.id);
+    }
+
+    function renderChannels() {
+      channels.forEach(channel => {
+        const el = document.createElement('div');
+        el.className = 'channel';
+        el.innerHTML = `
+          <img src="${channel.logo}" alt="${channel.name}">
+          <div class="channel-name">${channel.name}</div>
+        `;
+        el.onclick = () => playChannel(channel);
+        channelList.appendChild(el);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      shaka.polyfill.installAll();
+      await loadEPG();
+      renderChannels();
+      playChannel(channels[0]); // auto-play first channel
+    });
+  </script>
+</body>
+</html>

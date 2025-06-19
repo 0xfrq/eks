@@ -1,0 +1,146 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Responsive TV Player</title>
+  <script src="https://cdn.jsdelivr.net/npm/shaka-player@4.8.0/dist/shaka-player.compiled.min.js"></script>
+  <style>
+    body {
+      font-family: sans-serif;
+      margin: 0;
+      background-color: #121212;
+      color: white;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      padding: 1rem;
+    }
+    video {
+      width: 100%;
+      max-height: 60vh;
+      background: black;
+    }
+    .channels {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+      gap: 1rem;
+    }
+    .channel {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      background: #1e1e1e;
+      border-radius: 8px;
+      padding: 0.5rem;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+    .channel:hover {
+      background: #333;
+    }
+    .channel img {
+      width: 100%;
+      max-height: 80px;
+      object-fit: contain;
+    }
+    .channel-name {
+      margin-top: 0.5rem;
+      text-align: center;
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <video id="video" controls autoplay></video>
+    <div class="channels" id="channel-list"></div>
+  </div>
+
+  <script>
+    const channels = [
+      {
+        name: "Animax HD",
+        logo: "https://warningfm.github.io/v3/img/9sjx4gG.png?v=1.0.0.1",
+        url: "https://tglmp01.akamaized.net/out/v1/de55fad9216e4fe7ad8d2eed456ba1ec/manifest.mpd",
+        keyId: "edf1a715de9748638dd2fad75a419af2",
+        key: "2f5a3199b26e9b693ae881af7ff864cf"
+      },
+      {
+        name: "Citra Drama",
+        logo: "https://warningfm.github.io/v3/img/brVRgMU.png?v=1.0.0.1",
+        url: "https://cdn08jtedge.indihometv.com/dassdvr/130/cdrama/manifest.mpd",
+        keyId: "69646b755f3130303030303030303030",
+        key: "e4a2359b05563399f1d9adfce641724a"
+      },
+      {
+        name: "Citra Entertainment",
+        logo: "https://warningfm.github.io/v3/img/5cQKOuT.png?v=1.0.0.1",
+        url: "https://atemecdnbalancer-voe.sysln.id/live/eds/CitraEntertainmentHD/mpd/CitraEntertainmentHD.mpd",
+        keyId: "05cb4bbd91e34d858f6921e7196f7795",
+        key: "da3e19311e3a3d147607971a101c8dc3"
+      },
+      {
+        name: "Citra Muslim",
+        logo: "https://warningfm.github.io/v3/img/EunPKSf.png?v=1.0.0.1",
+        url: "https://atemecdnbalancer-voe.sysln.id/live/eds/CitraMuslimHD/mpd/CitraMuslimHD.mpd",
+        keyId: "f0bdfdef0f564819a2b43345b328f989",
+        key: "9f7555440fb310341ddb00cdbc638cea"
+      },
+      {
+        name: "RRI NET",
+        logo: "https://warningfm.github.io/v3/img/PekJ7S8.png?v=1.0.0.1",
+        url: "https://public-streaming.rri.co.id/memfs/a3a573d6-1ed3-4d6e-9f9f-e9a4e2cefd9d.m3u8",
+        isHLS: true
+      }
+      // Add more channels here as needed
+    ];
+
+    const video = document.getElementById('video');
+    const channelList = document.getElementById('channel-list');
+
+    async function playChannel(channel) {
+      if (channel.isHLS) {
+        video.src = channel.url;
+        return;
+      }
+
+      const player = new shaka.Player(video);
+      player.configure({
+        drm: {
+          clearKeys: {
+            [channel.keyId]: channel.key
+          }
+        }
+      });
+      try {
+        await player.load(channel.url);
+        console.log(`Playing: ${channel.name}`);
+      } catch (e) {
+        console.error('Error playing channel:', e);
+      }
+    }
+
+    function renderChannels() {
+      channels.forEach(channel => {
+        const el = document.createElement('div');
+        el.className = 'channel';
+        el.innerHTML = `
+          <img src="${channel.logo}" alt="${channel.name}">
+          <div class="channel-name">${channel.name}</div>
+        `;
+        el.onclick = () => playChannel(channel);
+        channelList.appendChild(el);
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      shaka.polyfill.installAll();
+      renderChannels();
+      playChannel(channels[0]); // Auto-play first channel
+    });
+  </script>
+</body>
+</html>
