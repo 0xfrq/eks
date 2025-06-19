@@ -16,4 +16,10 @@ class PostController extends Controller
 
         return view('posts.index', compact('posts'));
     }
+
+    public function create(): View
+    {
+        return view('posts.create');
+    }
+    
 }
